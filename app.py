@@ -26,7 +26,7 @@ def solve():
         b64 = base64.b64encode(img_bytes).decode()
 
         response = client.chat.completions.create(
-            model="qwen/qwen2.5-vl-7b-instruct",
+            model="qwen/qwen2.5-vl-32b-instruct:free",
             messages=[
                 {
                     "role": "user",
