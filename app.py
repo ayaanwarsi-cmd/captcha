@@ -12,7 +12,6 @@ client = OpenAI(
     api_key=os.environ.get("OPENROUTER_API_KEY")
 )
 
-# 🔥 Different prompt styles = different guesses
 PROMPTS = [
     "Read this captcha carefully. Return exactly 6 characters.",
     "Identify the 6-character captcha. Only output letters/numbers.",
@@ -70,7 +69,6 @@ def solve():
 
         guesses = []
 
-        # 🔥 MULTI-GUESS LOOP
         for prompt in PROMPTS:
             guess = ask_llm(b64, prompt)
 
@@ -80,7 +78,6 @@ def solve():
             if len(guesses) >= 3:
                 break
 
-        # fallback
         while len(guesses) < 3:
             guesses.append("------")
 
