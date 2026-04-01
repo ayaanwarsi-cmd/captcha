@@ -1,100 +1,37 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-from openai import OpenAI
-import base64
-import os
+import numpy as np
+import cv2
+import tensorflow as tf
 
 app = Flask(__name__)
-CORS(app)
 
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ.get("OPENROUTER_API_KEY")
-)
+model = tf.keras.models.load_model("model.h5")
 
-# 🔥 MULTIPLE MODELS
-MODELS = [
-    "meta-llama/llama-3.2-11b-vision-instruct",
-    "qwen/qwen2.5-vl-7b-instruct"
-]
-
-PROMPTS = [
-    "Read this captcha carefully. Return exactly 6 characters.",
-    "Identify the captcha text (6 chars). Only letters/numbers.",
-    "Extract the 6-character captcha. No explanation."
-]
-
-
-def ask_llm(b64, prompt, model):
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            temperature=0.9,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{b64}"
-                            }
-                        }
-                    ]
-                }
-            ]
-        )
-
-        text = response.choices[0].message.content.strip()
-        clean = ''.join(filter(str.isalnum, text))[:6].upper()
-
-        if len(clean) == 6:
-            return clean
-
-    except Exception as e:
-        print("MODEL ERROR:", model, e)
-
-    return None
-
-
-@app.route("/")
-def home():
-    return "Captcha Server Running 🚀"
-
+CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+num_to_char = {i:c for i,c in enumerate(CHARS)}
 
 @app.route("/solve", methods=["POST"])
 def solve():
-    try:
-        file = request.files["file"]
-        img_bytes = file.read()
-        b64 = base64.b64encode(img_bytes).decode()
+    file = request.files["file"]
+    img_bytes = file.read()
 
-        guesses = []
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
 
-        # 🔥 MULTI MODEL + MULTI PROMPT
-        for model in MODELS:
-            for prompt in PROMPTS:
-                guess = ask_llm(b64, prompt, model)
+    img = cv2.resize(img, (200,80))
 
-                if guess and guess not in guesses:
-                    guesses.append(guess)
+    img = cv2.GaussianBlur(img, (3,3), 0)
+    _, img = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY)
 
-                if len(guesses) >= 3:
-                    break
-            if len(guesses) >= 3:
-                break
+    img = img / 255.0
+    img = img.reshape(1,80,200,1)
 
-        while len(guesses) < 3:
-            guesses.append("------")
+    pred = model.predict(img)[0]
 
-        return jsonify({"guesses": guesses})
+    result = ""
+    for i in pred:
+        result += num_to_char[np.argmax(i)]
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"guesses": ["ERROR", "ERROR", "ERROR"]})
+    return jsonify({"guesses": [result, "------", "------"]})
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+app.run(port=5000)
