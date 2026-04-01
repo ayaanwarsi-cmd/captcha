@@ -24,7 +24,7 @@ PROMPTS = [
 def ask_llm(b64, prompt):
     try:
         response = client.chat.completions.create(
-            model="qwen/qwen2.5-vl-7b-instruct:free",
+            model="meta-llama/llama-3.2-11b-vision-instruct",
             temperature=0.8,
             messages=[
                 {
