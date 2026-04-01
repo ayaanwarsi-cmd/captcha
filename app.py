@@ -12,20 +12,24 @@ client = OpenAI(
     api_key=os.environ.get("OPENROUTER_API_KEY")
 )
 
+# 🔥 MULTIPLE MODELS
+MODELS = [
+    "meta-llama/llama-3.2-11b-vision-instruct",
+    "qwen/qwen2.5-vl-7b-instruct"
+]
+
 PROMPTS = [
     "Read this captcha carefully. Return exactly 6 characters.",
-    "Identify the 6-character captcha. Only output letters/numbers.",
-    "Extract the captcha text (6 chars). No explanation.",
-    "What are the 6 characters in this captcha? Return only text.",
-    "Carefully read distorted captcha and return 6 characters."
+    "Identify the captcha text (6 chars). Only letters/numbers.",
+    "Extract the 6-character captcha. No explanation."
 ]
 
 
-def ask_llm(b64, prompt):
+def ask_llm(b64, prompt, model):
     try:
         response = client.chat.completions.create(
-            model="meta-llama/llama-3.2-11b-vision-instruct",
-            temperature=0.8,
+            model=model,
+            temperature=0.9,
             messages=[
                 {
                     "role": "user",
@@ -49,7 +53,7 @@ def ask_llm(b64, prompt):
             return clean
 
     except Exception as e:
-        print("LLM error:", e)
+        print("MODEL ERROR:", model, e)
 
     return None
 
@@ -64,34 +68,32 @@ def solve():
     try:
         file = request.files["file"]
         img_bytes = file.read()
-
         b64 = base64.b64encode(img_bytes).decode()
 
         guesses = []
 
-        for prompt in PROMPTS:
-            guess = ask_llm(b64, prompt)
+        # 🔥 MULTI MODEL + MULTI PROMPT
+        for model in MODELS:
+            for prompt in PROMPTS:
+                guess = ask_llm(b64, prompt, model)
 
-            if guess and guess not in guesses:
-                guesses.append(guess)
+                if guess and guess not in guesses:
+                    guesses.append(guess)
 
+                if len(guesses) >= 3:
+                    break
             if len(guesses) >= 3:
                 break
 
         while len(guesses) < 3:
             guesses.append("------")
 
-        return jsonify({
-            "guesses": guesses
-        })
+        return jsonify({"guesses": guesses})
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-
-        return jsonify({
-            "guesses": ["ERROR", "ERROR", "ERROR"]
-        })
+        return jsonify({"guesses": ["ERROR", "ERROR", "ERROR"]})
 
 
 if __name__ == "__main__":
